@@ -1,0 +1,40 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -switch /Applications/Xcode.app
+
+      - name: Build Archive
+        run: |
+          xcodebuild archive \
+            -project App/ForgeSign.xcodeproj \
+            -scheme ForgeSign \
+            -configuration Release \
+            -archivePath build/ForgeSign.xcarchive \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package Payload to IPA
+        run: |
+          mkdir -p build/IPA/Payload
+          cp -r build/ForgeSign.xcarchive/Products/Applications/*.app build/IPA/Payload/
+          cd build/IPA
+          zip -r ../ForgeSign.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForgeSign-IPA
+          path: build/ForgeSign.ipa
