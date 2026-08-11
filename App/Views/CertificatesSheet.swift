@@ -12,7 +12,7 @@ extension UTType {
 
 struct CertificatesSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var certStore: CertificateStore
+    @ObservedObject var certStore: CertificateStore
 
     @State private var showP12Importer = false
     @State private var showProvisionImporter = false
