@@ -103,15 +103,39 @@ struct CertificatesSheet: View {
     // MARK: - Actions routed through methods to avoid capturing certStore inside ForEach/complex closures
 
     private func removeCertificate(_ cert: CertificateRecord) {
-        certStore.removeCertificate(cert)
+        // CertificateStore provides `delete(_:)` — call that to remove the record
+        certStore.delete(cert)
     }
 
     private func importProvision(from url: URL) {
-        certStore.importProvisioningProfile(from: url)
+        // There is no provisioning-profile import API on CertificateStore in this branch.
+        // For now just read and store the file next to certificates (no parsing).
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            let profilesDir = base.appendingPathComponent("Profiles", isDirectory: true)
+            try FileManager.default.createDirectory(at: profilesDir, withIntermediateDirectories: true)
+            var filename = url.lastPathComponent
+            if FileManager.default.fileExists(atPath: profilesDir.appendingPathComponent(filename).path) {
+                let stem = url.deletingPathExtension().lastPathComponent
+                let short = UUID().uuidString.prefix(6)
+                filename = "\(stem)-\(short).\(url.pathExtension)"
+            }
+            let dest = profilesDir.appendingPathComponent(filename)
+            try data.write(to: dest, options: .completeFileProtection)
+            // TODO: parse profile and extract team ID / app IDs if needed
+        } catch {
+            // swallow for now — there is no UI to surface errors in this view
+            print("Failed to import provisioning profile: \(error)")
+        }
     }
 
     private func importP12(from url: URL, password: String) {
-        certStore.importP12(from: url, password: password)
+        // Use the existing CertificateStore API
+        _ = certStore.importCertificate(from: url, password: password, rememberPassword: false)
     }
 }
 
@@ -124,12 +148,12 @@ private struct CertificatesListSection: View {
             ForEach(certificates, id: \.id) { cert in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(cert.name)
+                        Text(cert.displayName)
                             .font(.body)
                             .fontWeight(.semibold)
 
-                        if let exp = cert.expirationDate, !exp.isEmpty {
-                            Text(exp)
+                        if let exp = cert.notAfter {
+                            Text(exp, style: .date)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
