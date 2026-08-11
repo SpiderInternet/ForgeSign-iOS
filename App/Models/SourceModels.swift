@@ -43,6 +43,8 @@ struct FeedApp: Codable, Identifiable {
     let developer: String?
     let description: String?
     let iconURL: URL?
+    let bannerURL: URL?
+    let imageURL: URL?
     let versions: [FeedVersion]
 
     enum CodingKeys: String, CodingKey {
@@ -53,6 +55,10 @@ struct FeedApp: Codable, Identifiable {
         case developer = "developerName"
         case description = "localizedDescription"
         case iconURL
+        case bannerURL
+        case banner
+        case imageURL
+        case image
         case versions
     }
 
@@ -71,10 +77,33 @@ struct FeedApp: Codable, Identifiable {
         self.developer = try? container.decode(String.self, forKey: .developer)
         self.description = try? container.decode(String.self, forKey: .description)
 
+        // icon URL
         if let iconString = try? container.decode(String.self, forKey: .iconURL) {
             self.iconURL = URL(string: iconString)
         } else {
             self.iconURL = nil
+        }
+
+        // banner / image priority: try multiple common keys
+        var bannerString: String? = nil
+        if let s = try? container.decode(String.self, forKey: .bannerURL) { bannerString = s }
+        if bannerString == nil, let s = try? container.decode(String.self, forKey: .banner) { bannerString = s }
+        if bannerString == nil, let s = try? container.decode(String.self, forKey: .imageURL) { bannerString = s }
+        if bannerString == nil, let s = try? container.decode(String.self, forKey: .image) { bannerString = s }
+
+        if let b = bannerString, !b.isEmpty {
+            self.bannerURL = URL(string: b)
+        } else {
+            self.bannerURL = nil
+        }
+
+        // imageURL (distinct) fallback — try imageURL then image
+        if let imgString = try? container.decode(String.self, forKey: .imageURL) {
+            self.imageURL = URL(string: imgString)
+        } else if let imgString = try? container.decode(String.self, forKey: .image) {
+            self.imageURL = URL(string: imgString)
+        } else {
+            self.imageURL = nil
         }
 
         if let versionsList = try? container.decode([FeedVersion].self, forKey: .versions) {
@@ -91,6 +120,8 @@ struct FeedApp: Codable, Identifiable {
         try container.encodeIfPresent(developer, forKey: .developer)
         try container.encodeIfPresent(description, forKey: .description)
         try container.encodeIfPresent(iconURL?.absoluteString, forKey: .iconURL)
+        try container.encodeIfPresent(bannerURL?.absoluteString, forKey: .bannerURL)
+        try container.encodeIfPresent(imageURL?.absoluteString, forKey: .imageURL)
         try container.encode(versions, forKey: .versions)
     }
 }
