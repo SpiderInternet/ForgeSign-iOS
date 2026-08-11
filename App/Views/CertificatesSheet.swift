@@ -208,3 +208,38 @@ struct CertificatesSheet: View {
         _ = certStore.importCertificate(from: url, password: password, rememberPassword: false)
     }
 }
+
+private struct CertificatesListSection: View {
+    let certificates: [CertificateRecord]
+    let onRemove: (CertificateRecord) -> Void
+
+    var body: some View {
+        Section(header: Text("الشهادات المضافة")) {
+            ForEach(certificates, id: \.id) { cert in
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(cert.displayName)
+                            .font(.body)
+                            .fontWeight(.semibold)
+
+                        if let exp = cert.notAfter {
+                            Text(exp, style: .date)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button(role: .destructive) {
+                        onRemove(cert)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.red)
+                }
+            }
+        }
+    }
+}
