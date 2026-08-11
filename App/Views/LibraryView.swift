@@ -59,8 +59,7 @@ struct LibraryView: View {
             .background { ForgeBackdrop() }
             .navigationTitle(appLanguage == "ar" ? "المكتبة" : "Library")
             .sheet(isPresented: $showCertificatesSheet) {
-                CertificatesSheet()
-                    .environmentObject(certStore)
+                CertificatesSheet(certStore: certStore)
             }
         }
     }
