@@ -40,8 +40,7 @@ final class SignService {
         try data.write(to: ipaDest, options: .atomic)
 
         // Prepare paths
-        // Certificate file path
-        let certPath = CertificateStore().fileURL(for: cert).path // We create a store instance to compute dir; alternatively use existing store in caller
+        let certPath = CertificateStore().fileURL(for: cert).path
         let provPath = ProfileStore().fileURL(for: profile).path
 
         // Output path
@@ -55,18 +54,16 @@ final class SignService {
         var bundleBuf = [CChar](repeating: 0, count: 512)
         var versionBuf = [CChar](repeating: 0, count: 256)
 
-        // Call native signing bridge
-        let result = ipaDest.path.withCString { ipaC in
+        // Call native signing bridge and capture Int32 result
+        let result: Int32 = ipaDest.path.withCString { ipaC in
             certPath.withCString { certC in
-                // try to retrieve saved password from vault
                 let pwd = PasswordVault.password(for: cert.id) ?? ""
-                pwd.withCString { pwdC in
+                return pwd.withCString { pwdC in
                     provPath.withCString { provC in
-                        let bundleIdC: UnsafePointer<CChar>? = nil
-                        outPath.withCString { outC in
-                            tempFolder.withCString { tempC in
+                        return outPath.withCString { outC in
+                            return tempFolder.withCString { tempC in
                                 // removeExtensions = 0, enableDocuments = 0
-                                let r = forgesign_sign_ipa(ipaC, certC, pwdC, provC, bundleIdC, outC, tempC, 0, 0, &msgBuf, Int32(msgBuf.count), &bundleBuf, Int32(bundleBuf.count), &versionBuf, Int32(versionBuf.count))
+                                let r = forgesign_sign_ipa(ipaC, certC, pwdC, provC, nil, outC, tempC, 0, 0, &msgBuf, Int32(msgBuf.count), &bundleBuf, Int32(bundleBuf.count), &versionBuf, Int32(versionBuf.count))
                                 return r
                             }
                         }
@@ -76,14 +73,17 @@ final class SignService {
         }
 
         if result != 0 {
-            let message = String(cString: msgBuf)
+            let msgBytes = msgBuf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+            let message = String(decoding: msgBytes, as: UTF8.self)
             throw NSError(domain: "SignService", code: Int(result), userInfo: [NSLocalizedDescriptionKey: "Signing failed: \(message)"])
         }
 
         // On success, call installController on main thread
         let signedIPA = URL(fileURLWithPath: outPath)
+        let bundleIdStr = String(decoding: bundleBuf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        let versionStr = String(decoding: versionBuf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         await MainActor.run {
-            installController.install(ipa: signedIPA, bundleId: String(cString: bundleBuf).isEmpty ? (appBundleIdentifier(from: app) ?? "") : String(cString: bundleBuf), version: String(cString: versionBuf))
+            installController.install(ipa: signedIPA, bundleId: bundleIdStr.isEmpty ? (appBundleIdentifier(from: app) ?? "") : bundleIdStr, version: versionStr)
         }
     }
 
