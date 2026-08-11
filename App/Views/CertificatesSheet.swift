@@ -21,8 +21,23 @@ struct CertificatesSheet: View {
     @State private var selectedP12URL: URL?
 
     var body: some View {
-        NavigationStack {
-            let certificates = certStore.certificates
+        // Use a plain VStack + List to avoid nested NavigationStack inside a sheet
+        let certificates = certStore.certificates
+
+        VStack(spacing: 0) {
+            // Custom header with title and close button (avoids NavigationStack)
+            HStack {
+                Text("الشهادات")
+                    .font(.headline)
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Text("إغلاق")
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            Divider()
 
             List {
                 Section {
@@ -57,46 +72,39 @@ struct CertificatesSheet: View {
                     CertificatesListSection(certificates: certificates, onRemove: removeCertificate)
                 }
             }
-            .navigationTitle("الشهادات")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("إغلاق") { dismiss() }
-                }
+        }
+        .fileImporter(
+            isPresented: $showP12Importer,
+            allowedContentTypes: [.p12File, .data, .item],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                selectedP12URL = url
+                showPasswordAlert = true
             }
-            .fileImporter(
-                isPresented: $showP12Importer,
-                allowedContentTypes: [.p12File, .data, .item],
-                allowsMultipleSelection: false
-            ) { result in
-                if case .success(let urls) = result, let url = urls.first {
-                    selectedP12URL = url
-                    showPasswordAlert = true
-                }
+        }
+        .fileImporter(
+            isPresented: $showProvisionImporter,
+            allowedContentTypes: [.mobileprovisionFile, .data, .item],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                importProvision(from: url)
             }
-            .fileImporter(
-                isPresented: $showProvisionImporter,
-                allowedContentTypes: [.mobileprovisionFile, .data, .item],
-                allowsMultipleSelection: false
-            ) { result in
-                if case .success(let urls) = result, let url = urls.first {
-                    importProvision(from: url)
-                }
-            }
-            .alert("كلمة سر الشهادة", isPresented: $showPasswordAlert) {
-                SecureField("أدخل كلمة السر", text: $passwordInput)
-                Button("استيراد") {
-                    if let url = selectedP12URL {
-                        importP12(from: url, password: passwordInput)
-                        passwordInput = ""
-                    }
-                }
-                Button("إلغاء", role: .cancel) {
+        }
+        .alert("كلمة سر الشهادة", isPresented: $showPasswordAlert) {
+            SecureField("أدخل كلمة السر", text: $passwordInput)
+            Button("استيراد") {
+                if let url = selectedP12URL {
+                    importP12(from: url, password: passwordInput)
                     passwordInput = ""
                 }
-            } message: {
-                Text("يرجى إدخال كلمة سر ملف P12 المرفق.")
             }
+            Button("إلغاء", role: .cancel) {
+                passwordInput = ""
+            }
+        } message: {
+            Text("يرجى إدخال كلمة سر ملف P12 المرفق.")
         }
     }
 
