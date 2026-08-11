@@ -1,14 +1,45 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 extension UTType {
     static var p12File: UTType {
-        // Prefer system-recognized type for .p12; fall back to generic data so FileImporter allows selection
-        return UTType(filenameExtension: "p12") ?? .data
+        UTType(filenameExtension: "p12") ?? .data
     }
     static var mobileprovisionFile: UTType {
-        // .mobileprovision may not have a registered UTI on all systems — allow generic data as fallback
-        return UTType(filenameExtension: "mobileprovision") ?? .data
+        UTType(filenameExtension: "mobileprovision") ?? .data
+    }
+}
+
+// UIKit-based document picker wrapper (more permissive across providers)
+private struct DocumentPicker: UIViewControllerRepresentable {
+    let contentTypes: [UTType]
+    let onPick: (URL) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let controller = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: true)
+        controller.delegate = context.coordinator
+        controller.allowsMultipleSelection = false
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) { }
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: DocumentPicker
+        init(_ parent: DocumentPicker) { self.parent = parent }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.onCancel()
+        }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { return }
+            parent.onPick(url)
+        }
     }
 }
 
@@ -16,25 +47,28 @@ struct CertificatesSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var certStore: CertificateStore
 
-    @State private var showP12Importer = false
-    @State private var showProvisionImporter = false
+    private enum ImporterKind {
+        case p12
+        case provision
+    }
+
+    @State private var activeImporter: ImporterKind? = nil
     @State private var passwordInput = ""
     @State private var showPasswordAlert = false
     @State private var selectedP12URL: URL?
 
+    @State private var invalidSelectionMessage: String = ""
+    @State private var showInvalidSelectionAlert = false
+    @State private var presentDocumentPicker = false
+
     var body: some View {
-        // Use a plain VStack + List to avoid nested NavigationStack inside a sheet
         let certificates = certStore.certificates
 
         VStack(spacing: 0) {
-            // Custom header with title and close button (avoids NavigationStack)
             HStack {
-                Text("الشهادات")
-                    .font(.headline)
+                Text("الشهادات").font(.headline)
                 Spacer()
-                Button(action: { dismiss() }) {
-                    Text("إغلاق")
-                }
+                Button(action: { dismiss() }) { Text("إغلاق") }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -48,8 +82,7 @@ struct CertificatesSheet: View {
                             .font(.system(size: 40))
                             .foregroundColor(.blue)
 
-                        Text("إدارة الشهادات")
-                            .font(.headline)
+                        Text("إدارة الشهادات").font(.headline)
 
                         Text("قم بإضافة شهادة (.p12) وملف التعريف (.mobileprovision) لبدء التوقيع.")
                             .font(.caption)
@@ -61,11 +94,17 @@ struct CertificatesSheet: View {
                 }
 
                 Section {
-                    Button(action: { showP12Importer = true }) {
+                    Button(action: {
+                        activeImporter = .p12
+                        presentDocumentPicker = true
+                    }) {
                         Label("استيراد شهادة P12", systemImage: "doc.badge.plus")
                     }
 
-                    Button(action: { showProvisionImporter = true }) {
+                    Button(action: {
+                        activeImporter = .provision
+                        presentDocumentPicker = true
+                    }) {
                         Label("استيراد ملف MobileProvision", systemImage: "shield.badge.plus")
                     }
                 }
@@ -75,25 +114,19 @@ struct CertificatesSheet: View {
                 }
             }
         }
-        .fileImporter(
-            isPresented: $showP12Importer,
-            // include generic .data and .item to ensure Files UI allows selecting from various providers
-            allowedContentTypes: [UTType.p12File, .data, .item],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                selectedP12URL = url
-                showPasswordAlert = true
-            }
-        }
-        .fileImporter(
-            isPresented: $showProvisionImporter,
-            // include .data and .item as fallback so files aren't shown disabled
-            allowedContentTypes: [UTType.mobileprovisionFile, .data, .item],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                importProvision(from: url)
+        // Present UIKit DocumentPicker when requested (more compatible with providers)
+        .sheet(isPresented: $presentDocumentPicker) {
+            if let kind = activeImporter {
+                DocumentPicker(contentTypes: documentTypes(for: kind), onPick: { url in
+                    presentDocumentPicker = false
+                    handlePicked(url: url)
+                }, onCancel: {
+                    presentDocumentPicker = false
+                    activeImporter = nil
+                })
+                .edgesIgnoringSafeArea(.all)
+            } else {
+                EmptyView()
             }
         }
         .alert("كلمة سر الشهادة", isPresented: $showPasswordAlert) {
@@ -104,24 +137,49 @@ struct CertificatesSheet: View {
                     passwordInput = ""
                 }
             }
-            Button("إلغاء", role: .cancel) {
-                passwordInput = ""
-            }
-        } message: {
-            Text("يرجى إدخال كلمة سر ملف P12 المرفق.")
+            Button("إلغاء", role: .cancel) { passwordInput = "" }
+        } message: { Text("يرجى إدخال كلمة سر ملف P12 المرفق.") }
+        .alert("ملف غير صالح", isPresented: $showInvalidSelectionAlert) {
+            Button("حسنًا", role: .cancel) { showInvalidSelectionAlert = false }
+        } message: { Text(invalidSelectionMessage) }
+    }
+
+    private func documentTypes(for kind: ImporterKind) -> [UTType] {
+        switch kind {
+        case .p12:
+            return [UTType.p12File, .data, .item]
+        case .provision:
+            return [UTType.mobileprovisionFile, .data, .item]
         }
     }
 
-    // MARK: - Actions routed through methods to avoid capturing certStore inside ForEach/complex closures
-
-    private func removeCertificate(_ cert: CertificateRecord) {
-        // CertificateStore provides `delete(_:)` — call that to remove the record
-        certStore.delete(cert)
+    private func handlePicked(url: URL) {
+        let ext = url.pathExtension.lowercased()
+        switch activeImporter {
+        case .p12:
+            if ext == "p12" {
+                selectedP12URL = url
+                showPasswordAlert = true
+            } else {
+                invalidSelectionMessage = "الملف المحدد ليس بلاحقة .p12: \(url.lastPathComponent)"
+                showInvalidSelectionAlert = true
+            }
+        case .provision:
+            if ext == "mobileprovision" {
+                importProvision(from: url)
+            } else {
+                invalidSelectionMessage = "الملف المحدد ليس بلاحقة .mobileprovision: \(url.lastPathComponent)"
+                showInvalidSelectionAlert = true
+            }
+        case .none:
+            break
+        }
+        activeImporter = nil
     }
 
+    private func removeCertificate(_ cert: CertificateRecord) { certStore.delete(cert) }
+
     private func importProvision(from url: URL) {
-        // There is no provisioning-profile import API on CertificateStore in this branch.
-        // For now just read and store the file next to certificates (no parsing).
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 
@@ -138,50 +196,15 @@ struct CertificatesSheet: View {
             }
             let dest = profilesDir.appendingPathComponent(filename)
             try data.write(to: dest, options: .completeFileProtection)
-            // TODO: parse profile and extract team ID / app IDs if needed
         } catch {
-            // swallow for now — there is no UI to surface errors in this view
-            print("Failed to import provisioning profile: \(error)")
+            invalidSelectionMessage = "فشل استيراد ملف التعريف: \(error.localizedDescription)"
+            showInvalidSelectionAlert = true
         }
     }
 
     private func importP12(from url: URL, password: String) {
-        // Use the existing CertificateStore API
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         _ = certStore.importCertificate(from: url, password: password, rememberPassword: false)
-    }
-}
-
-private struct CertificatesListSection: View {
-    let certificates: [CertificateRecord]
-    let onRemove: (CertificateRecord) -> Void
-
-    var body: some View {
-        Section(header: Text("الشهادات المضافة")) {
-            ForEach(certificates, id: \.id) { cert in
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(cert.displayName)
-                            .font(.body)
-                            .fontWeight(.semibold)
-
-                        if let exp = cert.notAfter {
-                            Text(exp, style: .date)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    Button(role: .destructive) {
-                        onRemove(cert)
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.red)
-                }
-            }
-        }
     }
 }
