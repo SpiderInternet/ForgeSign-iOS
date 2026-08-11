@@ -11,17 +11,29 @@ struct AppCardView: View {
                 AsyncImage(url: app.iconURL) { phase in
                     switch phase {
                     case .empty:
-                        Color.gray.opacity(0.08)
+                        ZStack {
+                            Color.gray.opacity(0.08)
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .scaleEffect(0.9)
+                        }
                     case .success(let image):
-                        image.resizable().scaledToFit()
+                        image
+                            .resizable()
+                            .scaledToFill()
                     case .failure:
-                        Color.gray.opacity(0.08)
+                        Image(systemName: "app.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundColor(Color.gray.opacity(0.6))
+                            .padding(16)
                     @unknown default:
                         Color.clear
                     }
                 }
                 .frame(height: 120)
                 .clipped()
+                .cornerRadius(12)
                 .fGlass(cornerRadius: 12)
 
                 Text(app.title ?? app.bundleIdentifier)
@@ -43,6 +55,11 @@ struct AppCardView: View {
             .padding(10)
             .fGlass(cornerRadius: 12)
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(T.rule2, lineWidth: AppStroke.hairline))
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text(app.title ?? app.bundleIdentifier))
+            .accessibilityValue(Text(app.developer ?? ""))
+            .accessibilityHint(Text("Open app details"))
         }
         .buttonStyle(.plain)
     }
