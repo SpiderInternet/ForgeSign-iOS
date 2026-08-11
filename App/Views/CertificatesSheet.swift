@@ -77,7 +77,8 @@ struct CertificatesSheet: View {
         }
         .fileImporter(
             isPresented: $showP12Importer,
-            allowedContentTypes: [UTType.p12File],
+            // include generic .data and .item to ensure Files UI allows selecting from various providers
+            allowedContentTypes: [UTType.p12File, .data, .item],
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
@@ -87,7 +88,8 @@ struct CertificatesSheet: View {
         }
         .fileImporter(
             isPresented: $showProvisionImporter,
-            allowedContentTypes: [UTType.mobileprovisionFile],
+            // include .data and .item as fallback so files aren't shown disabled
+            allowedContentTypes: [UTType.mobileprovisionFile, .data, .item],
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
