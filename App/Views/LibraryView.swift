@@ -60,6 +60,7 @@ struct LibraryView: View {
             .navigationTitle(appLanguage == "ar" ? "المكتبة" : "Library")
             .sheet(isPresented: $showCertificatesSheet) {
                 CertificatesSheet()
+                    .environmentObject(certStore)
             }
         }
     }
