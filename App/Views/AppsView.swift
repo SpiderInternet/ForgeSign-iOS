@@ -65,10 +65,11 @@ struct AppsView: View {
                                             Button(action: { selectedApp = app }) {
                                                 VStack(alignment: .leading, spacing: 8) {
 
-                                                    // Featured card background: use banner if available, otherwise use icon as blurred background.
+                                                    // Featured card: background image (banner/image/icon) with dark gradient overlay
                                                     ZStack(alignment: .bottomLeading) {
-                                                        // Background image (banner or icon)
-                                                        if let bgURL = app.iconURL {
+                                                        let bgURL = app.bannerURL ?? app.imageURL ?? app.iconURL
+
+                                                        if let bgURL = bgURL {
                                                             AsyncImage(url: bgURL) { phase in
                                                                 switch phase {
                                                                 case .empty:
@@ -86,95 +87,60 @@ struct AppsView: View {
                                                             .frame(height: 170)
                                                             .clipped()
                                                             .cornerRadius(16)
-                                                            // Add a subtle blur & dark gradient to improve foreground contrast
-                                                            .overlay(
-                                                                LinearGradient(gradient: Gradient(colors: [Color.black.opacity(0.35), Color.black.opacity(0.10)]), startPoint: .bottom, endPoint: .center)
-                                                                    .cornerRadius(16)
-                                                            )
-                                                            .overlay(
-                                                                // Foreground content container to maintain padding
-                                                                HStack(spacing: 12) {
-                                                                    AsyncImage(url: app.iconURL) { img in
-                                                                        img.resizable().scaledToFill()
-                                                                    } placeholder: {
-                                                                        Color.gray.opacity(0.3)
-                                                                    }
-                                                                    .frame(width: 48, height: 48)
-                                                                    .cornerRadius(10)
-
-                                                                    VStack(alignment: .leading, spacing: 2) {
-                                                                        Text(app.title ?? "App")
-                                                                            .font(T.sans(14, .bold))
-                                                                            .foregroundColor(.white)
-                                                                            .lineLimit(1)
-
-                                                                        if let desc = app.description, !desc.isEmpty {
-                                                                            Text(desc)
-                                                                                .font(T.sans(11, .regular))
-                                                                                .foregroundColor(Color.white.opacity(0.9))
-                                                                                .lineLimit(1)
-                                                                        }
-                                                                    }
-
-                                                                    Spacer()
-
-                                                                    Text(appLanguage == "ar" ? "تثبيت" : "GET")
-                                                                        .font(T.sans(12, .bold))
-                                                                        .foregroundColor(.white)
-                                                                        .padding(.horizontal, 14)
-                                                                        .padding(.vertical, 6)
-                                                                        .background(Color.white.opacity(0.12))
-                                                                        .clipShape(Capsule())
-                                                                }
-                                                                .padding(12)
-                                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                                            )
                                                         } else {
-                                                            // Fallback gradient when no image URL
                                                             RoundedRectangle(cornerRadius: 16)
                                                                 .fill(LinearGradient(gradient: Gradient(colors: [T.accent.opacity(0.9), T.accent.opacity(0.6)]), startPoint: .topLeading, endPoint: .bottomTrailing))
                                                                 .frame(height: 170)
-                                                                .overlay(
-                                                                    HStack(spacing: 12) {
-                                                                        AsyncImage(url: app.iconURL) { img in
-                                                                            img.resizable().scaledToFill()
-                                                                        } placeholder: {
-                                                                            Color.gray.opacity(0.3)
-                                                                        }
-                                                                        .frame(width: 48, height: 48)
-                                                                        .cornerRadius(10)
-
-                                                                        VStack(alignment: .leading, spacing: 2) {
-                                                                            Text(app.title ?? "App")
-                                                                                .font(T.sans(14, .bold))
-                                                                                .foregroundColor(.white)
-                                                                                .lineLimit(1)
-
-                                                                            if let desc = app.description, !desc.isEmpty {
-                                                                                Text(desc)
-                                                                                    .font(T.sans(11, .regular))
-                                                                                    .foregroundColor(Color.white.opacity(0.9))
-                                                                                    .lineLimit(1)
-                                                                            }
-                                                                        }
-
-                                                                        Spacer()
-
-                                                                        Text(appLanguage == "ar" ? "تثبيت" : "GET")
-                                                                            .font(T.sans(12, .bold))
-                                                                            .foregroundColor(.white)
-                                                                            .padding(.horizontal, 14)
-                                                                            .padding(.vertical, 6)
-                                                                            .background(Color.white.opacity(0.12))
-                                                                            .clipShape(Capsule())
-                                                                    }
-                                                                    .padding(12)
-                                                                )
                                                         }
+
+                                                        // Dark gradient overlay to improve text contrast
+                                                        LinearGradient(gradient: Gradient(colors: [Color.black.opacity(0.48), Color.black.opacity(0.10)]), startPoint: .bottom, endPoint: .center)
+                                                            .cornerRadius(16)
+                                                            .frame(height: 170)
+                                                            .clipped()
+
+                                                        // Bottom content: small icon, title, description, GET button
+                                                        HStack(spacing: 12) {
+                                                            AsyncImage(url: app.iconURL) { img in
+                                                                img.resizable().scaledToFill()
+                                                            } placeholder: {
+                                                                Color.gray.opacity(0.3)
+                                                            }
+                                                            .frame(width: 48, height: 48)
+                                                            .cornerRadius(10)
+
+                                                            VStack(alignment: .leading, spacing: 2) {
+                                                                Text(app.title ?? "App")
+                                                                    .font(T.sans(14, .bold))
+                                                                    .foregroundColor(.white)
+                                                                    .lineLimit(1)
+
+                                                                if let desc = app.description, !desc.isEmpty {
+                                                                    Text(desc)
+                                                                        .font(T.sans(11, .regular))
+                                                                        .foregroundColor(Color.white.opacity(0.9))
+                                                                        .lineLimit(1)
+                                                                }
+                                                            }
+
+                                                            Spacer()
+
+                                                            Text(appLanguage == "ar" ? "تثبيت" : "GET")
+                                                                .font(T.sans(12, .bold))
+                                                                .foregroundColor(.white)
+                                                                .padding(.horizontal, 14)
+                                                                .padding(.vertical, 6)
+                                                                .background(Color.white.opacity(0.12))
+                                                                .clipShape(Capsule())
+                                                        }
+                                                        .padding(12)
+                                                        .padding(.bottom, 10)
                                                     }
+
                                                 }
                                                 .frame(width: 300)
                                             }
+                                            .buttonStyle(.plain)
                                         }
                                     }
                                     .padding(.horizontal, 16)
