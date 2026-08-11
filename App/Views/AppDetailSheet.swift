@@ -82,6 +82,7 @@ struct AppDetailSheet: View {
             }
             .sheet(isPresented: $showCertSheet) {
                 CertificatesSheet()
+                    .environmentObject(certStore)
             }
         }
     }
