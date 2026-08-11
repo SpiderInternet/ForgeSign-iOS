@@ -3,10 +3,12 @@ import UniformTypeIdentifiers
 
 extension UTType {
     static var p12File: UTType {
-        UTType(filenameExtension: "p12") ?? UTType(exportedAs: "com.rsa.pkcs-12")
+        // Prefer system-recognized type for .p12; fall back to generic data so FileImporter allows selection
+        return UTType(filenameExtension: "p12") ?? .data
     }
     static var mobileprovisionFile: UTType {
-        UTType(filenameExtension: "mobileprovision") ?? .data
+        // .mobileprovision may not have a registered UTI on all systems — allow generic data as fallback
+        return UTType(filenameExtension: "mobileprovision") ?? .data
     }
 }
 
@@ -75,7 +77,7 @@ struct CertificatesSheet: View {
         }
         .fileImporter(
             isPresented: $showP12Importer,
-            allowedContentTypes: [.p12File, .data, .item],
+            allowedContentTypes: [UTType.p12File],
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
@@ -85,7 +87,7 @@ struct CertificatesSheet: View {
         }
         .fileImporter(
             isPresented: $showProvisionImporter,
-            allowedContentTypes: [.mobileprovisionFile, .data, .item],
+            allowedContentTypes: [UTType.mobileprovisionFile],
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
