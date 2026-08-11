@@ -17,7 +17,7 @@ struct AppsView: View {
             ZStack {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
-                        
+
                         if store.isLoading && store.apps.isEmpty {
                             VStack(spacing: 12) {
                                 ProgressView()
@@ -33,11 +33,11 @@ struct AppsView: View {
                                 Image(systemName: "square.stack.3d.up.slash")
                                     .font(.system(size: 48))
                                     .foregroundColor(T.ink3)
-                                
+
                                 Text(appLanguage == "ar" ? "لا توجد تطبيقات معروضة" : "No Apps Displayed")
                                     .font(T.sans(17, .bold))
                                     .foregroundColor(T.ink)
-                                
+
                                 Button(action: { showSourcesSettings = true }) {
                                     HStack {
                                         Image(systemName: "plus.circle.fill")
@@ -56,7 +56,7 @@ struct AppsView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 40)
                         } else {
-                            
+
                             // 1. Featured Top Slider (Clean App Store Style)
                             if !featuredApps.isEmpty {
                                 ScrollView(.horizontal, showsIndicators: false) {
@@ -64,48 +64,113 @@ struct AppsView: View {
                                         ForEach(featuredApps, id: \.bundleIdentifier) { app in
                                             Button(action: { selectedApp = app }) {
                                                 VStack(alignment: .leading, spacing: 8) {
-                                                    
-                                                    ZStack(alignment: .bottomLeading) {
-                                                        RoundedRectangle(cornerRadius: 16)
-                                                            .fill(T.accent.opacity(0.12))
-                                                            .frame(height: 170)
-                                                        
-                                                        HStack(spacing: 12) {
-                                                            AsyncImage(url: app.iconURL) { img in
-                                                                img.resizable().scaledToFill()
-                                                            } placeholder: {
-                                                                Color.gray.opacity(0.3)
-                                                            }
-                                                            .frame(width: 48, height: 48)
-                                                            .cornerRadius(10)
 
-                                                            VStack(alignment: .leading, spacing: 2) {
-                                                                Text(app.title ?? "App")
-                                                                    .font(T.sans(14, .bold))
-                                                                    .foregroundColor(T.ink)
-                                                                    .lineLimit(1)
-                                                                
-                                                                if let desc = app.description, !desc.isEmpty {
-                                                                    Text(desc)
-                                                                        .font(T.sans(11, .regular))
-                                                                        .foregroundColor(T.ink2)
-                                                                        .lineLimit(1)
+                                                    // Featured card background: use banner if available, otherwise use icon as blurred background.
+                                                    ZStack(alignment: .bottomLeading) {
+                                                        // Background image (banner or icon)
+                                                        if let bgURL = app.iconURL {
+                                                            AsyncImage(url: bgURL) { phase in
+                                                                switch phase {
+                                                                case .empty:
+                                                                    Color.gray.opacity(0.08)
+                                                                case .success(let image):
+                                                                    image
+                                                                        .resizable()
+                                                                        .scaledToFill()
+                                                                case .failure:
+                                                                    Color.gray.opacity(0.08)
+                                                                @unknown default:
+                                                                    Color.clear
                                                                 }
                                                             }
-                                                            
-                                                            Spacer()
-                                                            
-                                                            Text(appLanguage == "ar" ? "تثبيت" : "GET")
-                                                                .font(T.sans(12, .bold))
-                                                                .foregroundColor(T.accent)
-                                                                .padding(.horizontal, 14)
-                                                                .padding(.vertical, 6)
-                                                                .background(T.accent.opacity(0.18))
-                                                                .clipShape(Capsule())
+                                                            .frame(height: 170)
+                                                            .clipped()
+                                                            .cornerRadius(16)
+                                                            // Add a subtle blur & dark gradient to improve foreground contrast
+                                                            .overlay(
+                                                                LinearGradient(gradient: Gradient(colors: [Color.black.opacity(0.35), Color.black.opacity(0.10)]), startPoint: .bottom, endPoint: .center)
+                                                                    .cornerRadius(16)
+                                                            )
+                                                            .overlay(
+                                                                // Foreground content container to maintain padding
+                                                                HStack(spacing: 12) {
+                                                                    AsyncImage(url: app.iconURL) { img in
+                                                                        img.resizable().scaledToFill()
+                                                                    } placeholder: {
+                                                                        Color.gray.opacity(0.3)
+                                                                    }
+                                                                    .frame(width: 48, height: 48)
+                                                                    .cornerRadius(10)
+
+                                                                    VStack(alignment: .leading, spacing: 2) {
+                                                                        Text(app.title ?? "App")
+                                                                            .font(T.sans(14, .bold))
+                                                                            .foregroundColor(.white)
+                                                                            .lineLimit(1)
+
+                                                                        if let desc = app.description, !desc.isEmpty {
+                                                                            Text(desc)
+                                                                                .font(T.sans(11, .regular))
+                                                                                .foregroundColor(Color.white.opacity(0.9))
+                                                                                .lineLimit(1)
+                                                                        }
+                                                                    }
+
+                                                                    Spacer()
+
+                                                                    Text(appLanguage == "ar" ? "تثبيت" : "GET")
+                                                                        .font(T.sans(12, .bold))
+                                                                        .foregroundColor(.white)
+                                                                        .padding(.horizontal, 14)
+                                                                        .padding(.vertical, 6)
+                                                                        .background(Color.white.opacity(0.12))
+                                                                        .clipShape(Capsule())
+                                                                }
+                                                                .padding(12)
+                                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                            )
+                                                        } else {
+                                                            // Fallback gradient when no image URL
+                                                            RoundedRectangle(cornerRadius: 16)
+                                                                .fill(LinearGradient(gradient: Gradient(colors: [T.accent.opacity(0.9), T.accent.opacity(0.6)]), startPoint: .topLeading, endPoint: .bottomTrailing))
+                                                                .frame(height: 170)
+                                                                .overlay(
+                                                                    HStack(spacing: 12) {
+                                                                        AsyncImage(url: app.iconURL) { img in
+                                                                            img.resizable().scaledToFill()
+                                                                        } placeholder: {
+                                                                            Color.gray.opacity(0.3)
+                                                                        }
+                                                                        .frame(width: 48, height: 48)
+                                                                        .cornerRadius(10)
+
+                                                                        VStack(alignment: .leading, spacing: 2) {
+                                                                            Text(app.title ?? "App")
+                                                                                .font(T.sans(14, .bold))
+                                                                                .foregroundColor(.white)
+                                                                                .lineLimit(1)
+
+                                                                            if let desc = app.description, !desc.isEmpty {
+                                                                                Text(desc)
+                                                                                    .font(T.sans(11, .regular))
+                                                                                    .foregroundColor(Color.white.opacity(0.9))
+                                                                                    .lineLimit(1)
+                                                                            }
+                                                                        }
+
+                                                                        Spacer()
+
+                                                                        Text(appLanguage == "ar" ? "تثبيت" : "GET")
+                                                                            .font(T.sans(12, .bold))
+                                                                            .foregroundColor(.white)
+                                                                            .padding(.horizontal, 14)
+                                                                            .padding(.vertical, 6)
+                                                                            .background(Color.white.opacity(0.12))
+                                                                            .clipShape(Capsule())
+                                                                    }
+                                                                    .padding(12)
+                                                                )
                                                         }
-                                                        .padding(12)
-                                                        .fGlass(cornerRadius: 14)
-                                                        .padding(10)
                                                     }
                                                 }
                                                 .frame(width: 300)
@@ -140,7 +205,7 @@ struct AppsView: View {
                                                         .font(T.sans(15, .bold))
                                                         .foregroundColor(T.ink)
                                                         .lineLimit(1)
-                                                    
+
                                                     Text(app.description ?? app.developer ?? "")
                                                         .font(T.sans(12, .regular))
                                                         .foregroundColor(T.ink2)
